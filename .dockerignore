@@ -1,0 +1,11 @@
+node_modules
+.git
+.gitignore
+README.md
+start.bat
+Dockerfile
+docker-compose.yml
+.dockerignore
+*.log
+.env
+data.broken.json

@@ -1,0 +1,13 @@
+{
+  "name": "corner-cafe-bot",
+  "version": "3.3.2",
+  "description": "Discord-бот Администратор для Corner Café",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.0",
+    "dotenv": "^16.4.5"
+  }
+}

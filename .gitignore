@@ -1,0 +1,6 @@
+.env
+node_modules/
+data.json
+data.json.tmp
+data.broken.json
+.DS_Store

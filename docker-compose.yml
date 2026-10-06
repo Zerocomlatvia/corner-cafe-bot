@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  corner-cafe-bot:
+    build: .
+    container_name: corner-cafe-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data.json:/app/data.json
+      - ./menu.js:/app/menu.js
+      - ./changelog.js:/app/changelog.js
+    environment:
+      - NODE_ENV=production

@@ -97,6 +97,8 @@ const testCommands = [
     .addStringOption(o => o.setName('изменения').setDescription('Список через ;').setRequired(false)),
 ];
 
+
+
 commands.push(...testCommands.map(c => c.toJSON()));
 
 // ───────────── Вспомогательное ─────────────
@@ -942,6 +944,11 @@ const STATUS_PRESETS = {
     title: '🔴 Администратор ушёл на перерыв',
     description: 'Бот остановлен, команды пока не работают.',
   },
+  updating: {
+    color: COLORS.gold,
+    title: '🟡 Бот обновляется',
+    description: 'Применяются изменения, скоро вернёмся! ⚙️',
+  },
   error: {
     color: COLORS.peach,
     title: '⚠️ Что-то пошло не так',
@@ -1178,6 +1185,8 @@ client.once(Events.ClientReady, async (c) => {
     console.log('⚠️ Бот пока не добавлен ни на один сервер — пригласите его по ссылке из OAuth2.');
   }
 
+  await sendStatus('updating'); // статус «обновляется»
+  await new Promise(r => setTimeout(r, 2000)); // пауза 2 сек чтобы успели увидеть
   await sendStatus('online'); // сообщение «в сети» в канал статуса
   await announcePatches(c); // патчи — если вышла новая версия
   await announceMiniPatches(c); // мини-патчи в отдельный канал

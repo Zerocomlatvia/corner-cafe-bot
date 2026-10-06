@@ -11,7 +11,7 @@ function defaultData() {
   for (const [name, prices] of Object.entries(defaults.MENU)) {
     menu[name] = { emoji: defaults.EMOJI[name] ?? '☕', prices: { ...prices } };
   }
-  return { menu, settings: { stats: {}, channels: {}, access: {}, statusMessages: {}, announced: {}, menuStyle: {}, menuMessages: {} } };
+  return { menu, settings: { stats: {}, channels: {}, access: {}, statusMessages: {}, announced: {}, menuStyle: {}, menuMessages: {}, messageStats: {} } };
 }
 
 function load() {
@@ -26,6 +26,7 @@ function load() {
       raw.settings.announced = raw.settings.announced ?? {}; // сервер → последняя объявленная версия
       raw.settings.menuStyle = raw.settings.menuStyle ?? {}; // сервер → { title, subtitle, footer }
       raw.settings.menuMessages = raw.settings.menuMessages ?? {}; // сервер → { channelId, messageId }
+      raw.settings.messageStats = raw.settings.messageStats ?? {}; // сервер → { userId: count }
       return raw;
     }
   } catch (err) {

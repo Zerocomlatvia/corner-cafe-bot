@@ -1103,25 +1103,34 @@ function miniPatchCard(entry) {
 const MINI_PATCH_CHANNEL_ID = '1556757280752410734';
 
 async function announceMiniPatches(c) {
-  if (!LATEST) return;
   try {
     const channel = await client.channels.fetch(MINI_PATCH_CHANNEL_ID);
     if (!channel?.isTextBased()) return;
 
-    const lastMini = data.settings.announcedMini ?? '0.0.0';
-    const pending = versionsOldestFirst.filter((e) => cmpVer(e.version, lastMini) > 0).slice(-3);
-    if (pending.length === 0) return;
+    // Мини-патчи имеют свою нумерацию: 1.1, 1.2, 1.3...
+    const lastMini = data.settings.announcedMini ?? '1.0';
+    const [major, minor] = lastMini.split('.').map(Number);
+    const nextMini = `${major}.${minor + 1}`;
 
-    for (const entry of pending) {
-      await channel.send({
-        components: [miniPatchCard(entry)],
-        flags: MessageFlags.IsComponentsV2,
-        allowedMentions: { parse: [] },
-      });
-      data.settings.announcedMini = entry.version;
-      save();
-      console.log(`📦 Мини-патч ${entry.version} отправлен`);
-    }
+    // Создаём запись для мини-патча
+    const entry = {
+      version: nextMini,
+      date: new Date().toISOString().slice(0, 10),
+      title: 'Техническое обновление',
+      changes: [
+        '🛠 Исправлен спам меню при рестартах бота',
+        '🧠 Лимит памяти снижен до 300 МБ — бот перестаёт рестартиться на Railway',
+      ],
+    };
+
+    await channel.send({
+      components: [miniPatchCard(entry)],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    });
+    data.settings.announcedMini = nextMini;
+    save();
+    console.log(`📦 Мини-патч ${nextMini} отправлен`);
   } catch (err) {
     console.error('Не удалось отправить мини-патч:', err.message);
   }

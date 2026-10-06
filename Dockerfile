@@ -12,5 +12,5 @@ RUN mkdir -p /app/data && chown -R node:node /app
 
 USER node
 
-ENV NODE_OPTIONS="--max-old-space-size=400"
+ENV NODE_OPTIONS="--max-old-space-size=300"
 CMD ["node", "index.js"]

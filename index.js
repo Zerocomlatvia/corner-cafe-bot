@@ -970,8 +970,11 @@ function statusChannelIds() {
 // Это сообщение — статус, который отправил сам бот?
 const isStatusMessage = (m) =>
   m.author?.id === client.user?.id &&
-  m.components?.[0]?.components?.[0]?.components?.[0]?.data?.content?.includes?.('Corner Café') &&
-  m.components?.[0]?.components?.some(c => c.type === 17); // Container type
+  m.components?.[0]?.type === 17 && // Container
+  m.components[0].components?.some(c =>
+    c.type === 10 && // TextDisplay
+    c.data?.content?.includes?.('Corner Café')
+  );
 
 // Оставляем в канале только свежий статус: прошлые сообщения бота удаляем
 async function cleanOldStatuses(channel, keepId) {

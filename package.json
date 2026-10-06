@@ -1,6 +1,6 @@
 {
   "name": "corner-cafe-bot",
-  "version": "3.3.4",
+  "version": "1.1.0",
   "description": "Discord-бот Администратор для Corner Café",
   "main": "index.js",
   "scripts": {

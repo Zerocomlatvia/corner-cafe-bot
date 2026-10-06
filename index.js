@@ -1197,22 +1197,14 @@ client.once(Events.ClientReady, async (c) => {
     console.log('⚠️ Бот пока не добавлен ни на один сервер — пригласите его по ссылке из OAuth2.');
   }
 
-  await sendStatus('updating'); // статус «обновляется»
-  await new Promise(r => setTimeout(r, 2000)); // пауза 2 сек чтобы успели увидеть
-  await sendStatus('online'); // сообщение «в сети» в канал статуса
-  await announcePatches(c); // патчи — если вышла новая версия
-  await announceMiniPatches(c); // мини-патчи в отдельный канал
+  await sendStatus('updating');
+  await new Promise(r => setTimeout(r, 2000));
+  await sendStatus('online');
+  await announcePatches(c);
+  await announceMiniPatches(c);
 
-  // Сообщение с меню в канале приводим к актуальному виду
-  for (const guild of c.guilds.cache.values()) {
-    if (!getChannelId('menu', guild.id)) continue;
-    try {
-      const r = await publishMenu(guild.id);
-      console.log(`📌 Меню в канале ${r.status === 'posted' ? 'опубликовано' : 'обновлено'} («${guild.name}»)`);
-    } catch (err) {
-      console.error(`Не удалось обновить меню в канале («${guild.name}»): ${err.message}`);
-    }
-  }
+  // Меню НЕ публикуем автоматически при старте.
+  // Публикуется только: командой /меню или кнопкой «Обновить в канале» в /настроить
 
   await runStatsUpdate();
   setInterval(runStatsUpdate, STATS_INTERVAL);

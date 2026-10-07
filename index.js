@@ -1092,17 +1092,26 @@ async function sendStatus(kind, details = '') {
 
 // Аккуратное выключение: сначала сообщаем «ушёл на перерыв», потом выходим
 let shuttingDown = false;
+let isContainerRestart = false; // флаг для игнора SIGTERM при рестарте контейнера
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`\nОстанавливаю бота (${signal})...`);
-  await Promise.race([sendStatus('offline'), new Promise((r) => setTimeout(r, 4000))]);
+  // Не шлём статус offline при рестарте контейнера (Railway SIGTERM)
+  if (!isContainerRestart) {
+    await Promise.race([sendStatus('offline'), new Promise((r) => setTimeout(r, 4000))]);
+  }
   client.destroy();
   process.exit(0);
 }
-['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'].forEach((sig) =>
-  process.on(sig, () => shutdown(sig))
-);
+// Railway шлёт SIGTERM перед рестартом — помечаем как рестарт контейнера
+process.on('SIGTERM', () => {
+  isContainerRestart = true;
+  shutdown('SIGTERM');
+});
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGHUP', () => shutdown('SIGHUP'));
+process.on('SIGBREAK', () => shutdown('SIGBREAK'));
 
 // Неожиданные ошибки — тоже в канал статуса (не чаще раза в минуту)
 async function reportError(err) {
@@ -1323,8 +1332,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return await interaction.reply({ ...home, flags: home.flags | MessageFlags.Ephemeral });
     }
 
-    // /тест-патч — превью обычного патча
+    // /тест-патч — превью обычного патча (только админы)
     if (interaction.commandName === 'тест-патч') {
+      if (!isAdmin(interaction)) {
+        return await interaction.reply({ content: 'Только для администраторов 🔒', flags: MessageFlags.Ephemeral });
+      }
       const version = interaction.options.getString('версия') ?? '3.3.0';
       const title = interaction.options.getString('название') ?? 'Тестовый патч';
       const changesStr = interaction.options.getString('изменения') ?? 'Изменение 1;Изменение 2;Исправлена бага';
@@ -1336,8 +1348,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
     }
 
-    // /тест-мини — превью мини-патча
+    // /тест-мини — превью мини-патча (только админы)
     if (interaction.commandName === 'тест-мини') {
+      if (!isAdmin(interaction)) {
+        return await interaction.reply({ content: 'Только для администраторов 🔒', flags: MessageFlags.Ephemeral });
+      }
       const version = interaction.options.getString('версия') ?? '3.3.0';
       const title = interaction.options.getString('название') ?? 'Тестовый мини-патч';
       const changesStr = interaction.options.getString('изменения') ?? 'Мелкое улучшение;Исправление бага';
@@ -1354,6 +1369,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!canUseCommand(interaction, 'отзыв')) {
         return await interaction.reply({ content: 'У вас нет прав для этой команды 🔒', flags: MessageFlags.Ephemeral });
       }
+      // Защита от двойного клика
+      const reviewKey = `review:${interaction.user.id}:${Date.now()}`;
+      if (global.reviewCooldown?.has(interaction.user.id)) {
+        return await interaction.reply({ content: 'Подождите перед отправкой следующего отзыва ⏳', flags: MessageFlags.Ephemeral });
+      }
+      global.reviewCooldown = global.reviewCooldown ?? new Set();
+      global.reviewCooldown.add(interaction.user.id);
+      setTimeout(() => global.reviewCooldown.delete(interaction.user.id), 3000);
       const drinkInput = interaction.options.getString('напиток');
       const drink = drinkInput ? findDrink(drinkInput) : null;
       if (drinkInput && !drink) {

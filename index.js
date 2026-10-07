@@ -143,6 +143,16 @@ function canUseSettings(i) {
   return allowed.some((id) => mine.includes(id));
 }
 
+// ───────────── Права на команды ─────────────
+function canUseCommand(i, commandName) {
+  if (!i.inGuild()) return false;
+  if (isAdmin(i)) return true;
+  const perms = data.settings.commandPermissions[i.guildId]?.[commandName];
+  if (!perms || perms.length === 0) return true; // если не настроено — доступно всем
+  const mine = memberRoleIds(i);
+  return perms.some((id) => mine.includes(id));
+}
+
 // ───────────── Красивые карточки ─────────────
 const line = (size = SeparatorSpacingSize.Small) =>
   new SeparatorBuilder().setDivider(true).setSpacing(size);
@@ -375,7 +385,12 @@ function homeScreen(i, notice) {
         .setLabel('Доступ')
         .setDescription('Какие роли могут открывать эти настройки')
         .setValue('access')
-        .setEmoji('🔐')
+        .setEmoji('🔐'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Права на команды')
+        .setDescription('Кто может использовать /меню, /отзыв')
+        .setValue('cmdperms')
+        .setEmoji('🛡️')
     );
   }
 
@@ -646,6 +661,29 @@ function accessScreen(guild, notice) {
   );
 }
 
+// ── Права на команды ──
+function commandPermsScreen(guild, notice) {
+  const perms = data.settings.commandPermissions[guild.id] ?? {};
+  const commandNames = ['меню', 'отзыв'];
+  const c = panelSimple('🛡️ Права на команды', 'Какие роли могут использовать команды. Пусто = доступно всем', notice);
+
+  for (const cmd of commandNames) {
+    const roles = (perms[cmd] ?? []).filter((id) => guild.roles?.cache?.has(id));
+    const select = new RoleSelectMenuBuilder()
+      .setCustomId(`cfg:cmdperm:${cmd}`)
+      .setPlaceholder('Выберите роли')
+      .setMinValues(0)
+      .setMaxValues(10);
+    if (roles.length) select.setDefaultRoles(...roles);
+
+    const now = roles.length ? roles.map((r) => `<@&${r}>`).join(' ') : '**всем**';
+    c.addTextDisplayComponents(text(`### /${cmd}\nСейчас: ${now}`));
+    c.addActionRowComponents(new ActionRowBuilder().addComponents(select));
+  }
+  c.addActionRowComponents(backRow());
+  return screen(c);
+}
+
 function styleModal(guildId) {
   const st = menuStyle(guildId);
   return new ModalBuilder()
@@ -755,7 +793,7 @@ async function handleConfig(i) {
       try {
         const channel = await client.channels.fetch(arg);
         if (!channel?.isTextBased()) return reply('В этот канал нельзя отправить сообщение.');
-        const payload = title
+const payload = title
           ? {
               components: [
                 containerHeader(title, '', COLORS.beige)
@@ -813,6 +851,10 @@ async function handleConfig(i) {
     if (choice === 'access') {
       if (!isAdmin(i)) return deny('Этот раздел доступен только администраторам 🔒');
       return i.update(accessScreen(guild));
+    }
+    if (choice === 'cmdperms') {
+      if (!isAdmin(i)) return deny('Этот раздел доступен только администраторам 🔒');
+      return i.update(commandPermsScreen(guild));
     }
     return;
   }
@@ -928,6 +970,18 @@ async function handleConfig(i) {
     save();
     return i.update(
       accessScreen(guild, i.values.length ? '✅ Доступ обновлён' : '✅ Теперь настройки открывают только администраторы')
+    );
+  }
+
+  // Права на команды
+  if (area === 'cmdperm') {
+    if (!isAdmin(i)) return deny('Этот раздел доступен только администраторам 🔒');
+    const cmd = action;
+    data.settings.commandPermissions[i.guildId] = data.settings.commandPermissions[i.guildId] ?? {};
+    data.settings.commandPermissions[i.guildId][cmd] = [...i.values];
+    save();
+    return i.update(
+      commandPermsScreen(guild, i.values.length ? `✅ Права для /${cmd} обновлены` : `✅ /${cmd} доступно всем`)
     );
   }
 }
@@ -1200,8 +1254,8 @@ client.once(Events.ClientReady, async (c) => {
   await sendStatus('updating');
   await new Promise(r => setTimeout(r, 2000));
   await sendStatus('online');
-  await announcePatches(c);
-  await announceMiniPatches(c);
+  // await announcePatches(c); // отключено — пишем обновления вручную
+  // await announceMiniPatches(c); // отключено — пишем обновления вручную
 
   // Меню НЕ публикуем автоматически при старте.
   // Публикуется только: командой /меню или кнопкой «Обновить в канале» в /настроить
@@ -1234,6 +1288,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // /меню
     if (interaction.commandName === 'меню') {
+      if (!canUseCommand(interaction, 'меню')) {
+        return await interaction.reply({ content: 'У вас нет прав для этой команды 🔒', flags: MessageFlags.Ephemeral });
+      }
       return await interaction.reply({
         components: [buildMenuContainer(interaction.guildId)],
         flags: MessageFlags.IsComponentsV2,
@@ -1280,6 +1337,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // /отзыв
     if (interaction.commandName === 'отзыв') {
+      if (!canUseCommand(interaction, 'отзыв')) {
+        return await interaction.reply({ content: 'У вас нет прав для этой команды 🔒', flags: MessageFlags.Ephemeral });
+      }
       const drinkInput = interaction.options.getString('напиток');
       const drink = drinkInput ? findDrink(drinkInput) : null;
       if (drinkInput && !drink) {

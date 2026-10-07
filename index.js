@@ -373,12 +373,12 @@ function homeScreen(i, notice) {
       .setDescription('Отзывы, статус бота и патчи')
       .setValue('channels')
       .setEmoji('📢'),
-    new StringSelectMenuOptionBuilder()
-      .setLabel('Написать от имени бота')
-      .setDescription('Отправить сообщение в любой канал')
-      .setValue('say')
-      .setEmoji('✍️'),
-  ];
+new StringSelectMenuOptionBuilder()
+        .setLabel('Написать от имени бота')
+        .setDescription('Отправить сообщение в любой канал')
+        .setValue('say')
+        .setEmoji('✍️'),
+    ];
   if (isAdmin(i)) {
     options.push(
       new StringSelectMenuOptionBuilder()
@@ -390,7 +390,12 @@ function homeScreen(i, notice) {
         .setLabel('Права на команды')
         .setDescription('Кто может использовать /меню, /отзыв')
         .setValue('cmdperms')
-        .setEmoji('🛡️')
+        .setEmoji('🛡️'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Написать обновления')
+        .setDescription('Отправить патч / мини-патч в каналы')
+        .setValue('writepatch')
+        .setEmoji('📝')
     );
   }
 
@@ -756,6 +761,90 @@ function sayModal(channelId) {
     );
 }
 
+// ── Написать обновления (патч / мини-патч) ──
+function writePatchScreen(guild, notice) {
+  const options = [
+    new StringSelectMenuOptionBuilder()
+      .setLabel('📜 Патч (канал Патчи)')
+      .setDescription('Обычное обновление в канал Патчи')
+      .setValue('patch')
+      .setEmoji('📜'),
+    new StringSelectMenuOptionBuilder()
+      .setLabel('📦 Мини-патч (канал Мини-патчи)')
+      .setDescription('Краткое обновление в канал Мини-патчей')
+      .setValue('minipatch')
+      .setEmoji('📦'),
+  ];
+
+  return screen(
+    panelSimple('📝 Написать обновления', 'Выбери тип обновления и напиши текст', notice)
+      .addTextDisplayComponents(
+        text(
+          'Выбери куда отправить, затем нажми «Написать».\n' +
+          '-# Поддерживается **markdown**. Карточка формируется автоматически.'
+        )
+      )
+      .addSeparatorComponents(line())
+      .addActionRowComponents(
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId('cfg:wp:type')
+            .setPlaceholder('Куда отправить?')
+            .addOptions(options)
+        )
+      )
+      .addActionRowComponents(
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('cfg:wp:write')
+            .setLabel('Написать')
+            .setEmoji('✍️')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(true),
+          new ButtonBuilder().setCustomId('cfg:back').setLabel('Назад').setEmoji('◀️').setStyle(ButtonStyle.Secondary)
+        )
+      )
+  );
+}
+
+function writePatchModal(type) {
+  const isPatch = type === 'patch';
+  return new ModalBuilder()
+    .setCustomId(`cfg:modal:wp:${type}`)
+    .setTitle(isPatch ? '📜 Патч' : '📦 Мини-патч')
+    .addComponents(
+      field('version', 'Версия (например 1.2)', { required: true, max: 20 }),
+      field('title', 'Заголовок', { required: true, max: 100 }),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('changes')
+          .setLabel('Изменения (по одному на строке)')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(2000)
+          .setPlaceholder('Исправлена бага\nДобавлена фича\nУлучшен UI')
+      )
+    );
+}
+
+function buildPatchContainer(type, entry) {
+  const date = new Date(entry.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const isPatch = type === 'patch';
+  const color = isPatch ? COLORS.pink : COLORS.peach;
+  const icon = isPatch ? '📜' : '📦';
+  const label = isPatch ? 'Обновление' : 'Мини-патч';
+
+  return new ContainerBuilder()
+    .setAccentColor(color)
+    .addTextDisplayComponents(text(`# ${icon} ${label} ${entry.version}\n-# ${date}`))
+    .addSeparatorComponents(line(SeparatorSpacingSize.Large))
+    .addTextDisplayComponents(text(`## ${entry.title}`))
+    .addSeparatorComponents(line())
+    .addTextDisplayComponents(text(entry.changes.map(c => `▸ ${c}`).join('\n')))
+    .addSeparatorComponents(line(SeparatorSpacingSize.Large))
+    .addTextDisplayComponents(text(`-# Corner Café`));
+}
+
 // ── Обработка нажатий в панели ──
 async function handleConfig(i) {
   const deny = (msg = 'У вас нет доступа к настройкам 🔒') =>
@@ -786,14 +875,14 @@ async function handleConfig(i) {
       return show(menuScreen(`✅ Добавлено: ${emoji} **${name}**${syncNote(i.guildId)}`));
     }
 
-    if (area === 'modal' && action === 'say') {
+if (area === 'modal' && action === 'say') {
       const title = i.fields.getTextInputValue('title').trim();
       const body = i.fields.getTextInputValue('body').trim();
       if (!body) return reply('Текст сообщения не может быть пустым.');
       try {
         const channel = await client.channels.fetch(arg);
         if (!channel?.isTextBased()) return reply('В этот канал нельзя отправить сообщение.');
-const payload = title
+        const payload = title
           ? {
               components: [
                 containerHeader(title, '', COLORS.beige)
@@ -812,6 +901,34 @@ const payload = title
       }
     }
 
+    if (area === 'modal' && action === 'wp') {
+      const version = i.fields.getTextInputValue('version').trim();
+      const title = i.fields.getTextInputValue('title').trim();
+      const changesRaw = i.fields.getTextInputValue('changes').trim();
+      if (!version || !title || !changesRaw) return reply('Заполни все поля.');
+      const changes = changesRaw.split('\n').map(s => s.trim()).filter(Boolean);
+      if (changes.length === 0) return reply('Добавь хотя бы одно изменение.');
+
+      const entry = { version, date: new Date().toISOString().slice(0, 10), title, changes };
+      const type = arg; // 'patch' or 'minipatch'
+
+      try {
+        const channelId = type === 'patch'
+          ? getChannelId('patches', i.guildId)
+          : '1556757280752410734';
+        const channel = await client.channels.fetch(channelId);
+        if (!channel?.isTextBased()) return reply('Канал не найден или не текстовый.');
+
+        await channel.send({
+          components: [buildPatchContainer(type, entry)],
+          flags: MessageFlags.IsComponentsV2,
+          allowedMentions: { parse: [] },
+        });
+        return show(writePatchScreen(i.guild, `✅ ${type === 'patch' ? '📜 Патч' : '📦 Мини-патч'} ${version} отправлен`));
+      } catch (err) {
+        console.error('Не удалось отправить обновление:', err.message);
+        return reply('⚠️ Не получилось отправить. Проверь права бота в канале.');
+      }
     if (area === 'modal' && action === 'style') {
       const title = i.fields.getTextInputValue('title').trim();
       if (!title) return reply('Заголовок не может быть пустым.');
@@ -848,6 +965,10 @@ const payload = title
     if (choice === 'stats') return i.update(statsScreen(guild));
     if (choice === 'channels') return i.update(channelsScreen(guild));
     if (choice === 'say') return i.update(sayScreen(guild));
+    if (choice === 'writepatch') {
+      if (!isAdmin(i)) return deny('Этот раздел доступен только администраторам 🔒');
+      return i.update(writePatchScreen(guild));
+    }
     if (choice === 'access') {
       if (!isAdmin(i)) return deny('Этот раздел доступен только администраторам 🔒');
       return i.update(accessScreen(guild));
@@ -1444,3 +1565,4 @@ client.login(token).catch((err) => {
   }
   process.exit(1);
 });
+}

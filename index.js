@@ -980,8 +980,22 @@ const payload = title
     data.settings.commandPermissions[i.guildId] = data.settings.commandPermissions[i.guildId] ?? {};
     data.settings.commandPermissions[i.guildId][cmd] = [...i.values];
     save();
+
+    // Синхронизация с Discord API
+    try {
+      const guildCmds = await i.guild.commands.fetch();
+      const targetCmd = guildCmds.find(c => c.name === cmd);
+      if (targetCmd) {
+        const roleIds = data.settings.commandPermissions[i.guildId][cmd] ?? [];
+        const permissions = roleIds.map(id => ({ id, type: 1, permission: true })); // 1 = ROLE
+        await i.guild.commands.permissions.set({ fullPermissions: permissions, commandId: targetCmd.id });
+      }
+    } catch (err) {
+      console.error('Не удалось синхронизировать права с Discord:', err.message);
+    }
+
     return i.update(
-      commandPermsScreen(guild, i.values.length ? `✅ Права для /${cmd} обновлены` : `✅ /${cmd} доступно всем`)
+      commandPermsScreen(guild, i.values.length ? `✅ Права для /${cmd} обновлены (синхронизировано с Discord)` : `✅ /${cmd} доступно всем (синхронизировано с Discord)`)
     );
   }
 }

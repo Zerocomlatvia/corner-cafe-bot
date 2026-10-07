@@ -1090,26 +1090,17 @@ async function sendStatus(kind, details = '') {
   }
 }
 
-// Аккуратное выключение: сначала сообщаем «ушёл на перерыв», потом выходим
+// Аккуратное выключение: просто выходим, не шлём статус offline (пишем вручную)
 let shuttingDown = false;
-let isContainerRestart = false; // флаг для игнора SIGTERM при рестарте контейнера
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`\nОстанавливаю бота (${signal})...`);
-  // Не шлём статус offline при рестарте контейнера (Railway SIGTERM)
-  if (!isContainerRestart) {
-    await Promise.race([sendStatus('offline'), new Promise((r) => setTimeout(r, 4000))]);
-  }
   client.destroy();
   process.exit(0);
 }
-// Railway шлёт SIGTERM перед рестартом — помечаем как рестарт контейнера
-process.on('SIGTERM', () => {
-  isContainerRestart = true;
-  shutdown('SIGTERM');
-});
 process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGHUP', () => shutdown('SIGHUP'));
 process.on('SIGBREAK', () => shutdown('SIGBREAK'));
 
